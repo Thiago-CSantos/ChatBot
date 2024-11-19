@@ -1,0 +1,17 @@
+{
+  "name": "chatbot",
+  "version": "1.0.0",
+  "description": "desenvolvido por THC(Thiago C. Santos)",
+  "main": "chatbot.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Thiago C.Santos",
+  "license": "ISC",
+  "dependencies": {
+    "chatbot": "file:",
+    "moment-timezone": "^0.5.45",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "pedroslopez/whatsapp-web.js.git#main"
+  }
+}
