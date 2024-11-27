@@ -1,6 +1,8 @@
 const qrcode = require('qrcode-terminal');
 const { Client, Buttons, List, MessageMedia } = require('whatsapp-web.js'); // Mudança Buttons
 const client = new Client();
+const { printer: ThermalPrinter, types: PrinterTypes } = require('node-thermal-printer'); // Biblioteca de impressão térmica
+
 client.on('qr', qr => {
     qrcode.generate(qr, { small: true });
 });
@@ -8,6 +10,36 @@ client.on('ready', () => {
     console.log('Tudo certo! WhatsApp conectado.');
 });
 client.initialize();
+
+const printer = new ThermalPrinter({
+    type: PrinterTypes.EPSON, // Altere se necessário (STAR, etc.)
+    interface: "dummy", // Nome da impressora ou tipo de conexão
+    characterSet: 'PC437_USA',
+    removeSpecialCharacters: false,
+    lineCharacter: "=",
+    options: {
+        debug: true, // Ativa o modo de depuração
+    },
+});
+
+// Função para imprimir
+async function imprimirMensagem(mensagem, wid) {
+    try {
+        printer.println(mensagem);
+        printer.cut();
+
+        const sucesso = await printer.execute(); // Envia o comando para a impressora
+        if (sucesso) {
+            client.sendMessage(wid, 'Pedido enviado para impressão:' + mensagem);
+            console.log('Mensagem enviada para impressão:', mensagem);
+        } else {
+            console.error('Falha ao imprimir.');
+        }
+    } catch (error) {
+        console.error('Erro ao imprimir:', error);
+    }
+}
+
 
 const delay = ms => new Promise(res => setTimeout(res, ms)); // Função que usamos para criar o delay entre uma ação e outra
 
@@ -49,7 +81,7 @@ client.on('message', async msg => {
 
         await chat.sendStateTyping(); // Simulando Digitação
         await delay(3000);
-        await client.sendMessage(msg.from, '*Plano Individual:* R$22,50 por mês.\n\n*Plano Família:* R$39,90 por mês, inclui você mais 3 dependentes.\n\n*Plano TOP Individual:* R$42,50 por mês, com benefícios adicionais como\n\n*Plano TOP Família:* R$79,90 por mês, inclui você mais 3 dependentes');
+        await client.sendMessage(msg.from, '*Plano Individual:* R$22,50 por mês.');
 
         await delay(3000); //delay de 3 segundos
         await chat.sendStateTyping(); // Simulando Digitação
@@ -67,7 +99,9 @@ client.on('message', async msg => {
         await delay(3000); //delay de 3 segundos
         await chat.sendStateTyping(); // Simulando Digitação
         await delay(3000);
-        await client.sendMessage(msg.from, 'Link para cadastro: https://site.com');
+        imprimirMensagem("Imprimir mensagem ", msg.from)
+        console.log("Body", msg.body);
+        console.log("From", msg.from);
 
     }
 
@@ -88,12 +122,15 @@ client.on('message', async msg => {
 
     if (msg.body !== null && msg.body === '5' && msg.from.endsWith('@c.us')) {
         const chat = await msg.getChat();
+        console.log("Body", msg.body);
+        console.log("From", msg.from);
 
         await delay(3000); //Delay de 3000 milisegundos mais conhecido como 3 segundos
         await chat.sendStateTyping(); // Simulando Digitação
         await delay(3000);
         await client.sendMessage(msg.from, 'Se você tiver outras dúvidas ou precisar de mais informações, por favor, fale aqui nesse whatsapp ou visite nosso site: https://site.com ');
 
+        imprimirMensagem("Imprimir mensagem numero 5 ", msg.from)
     }
 
 });
