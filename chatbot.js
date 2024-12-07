@@ -1,7 +1,7 @@
 const qrcode = require('qrcode-terminal');
 const { Client, Buttons, List, MessageMedia } = require('whatsapp-web.js'); // Mudança Buttons
+const amqp = require('amqplib');
 const client = new Client();
-const { printer: ThermalPrinter, types: PrinterTypes } = require('node-thermal-printer'); // Biblioteca de impressão térmica
 
 client.on('qr', qr => {
     qrcode.generate(qr, { small: true });
@@ -11,35 +11,27 @@ client.on('ready', () => {
 });
 client.initialize();
 
-const printer = new ThermalPrinter({
-    type: PrinterTypes.EPSON, // Altere se necessário (STAR, etc.)
-    interface: "dummy", // Nome da impressora ou tipo de conexão
-    characterSet: 'PC437_USA',
-    removeSpecialCharacters: false,
-    lineCharacter: "=",
-    options: {
-        debug: true, // Ativa o modo de depuração
-    },
-});
-
-// Função para imprimir
-async function imprimirMensagem(mensagem, wid) {
+async function sendMessageToQueue(queue, message) {
     try {
-        printer.println(mensagem);
-        printer.cut();
+        const connection = await amqp.connect("amqp://guest:guest@localhost:5672");
+        const channel = await connection.createChannel();
 
-        const sucesso = await printer.execute(); // Envia o comando para a impressora
-        if (sucesso) {
-            client.sendMessage(wid, 'Pedido enviado para impressão:' + mensagem);
-            console.log('Mensagem enviada para impressão:', mensagem);
-        } else {
-            console.error('Falha ao imprimir.');
-        }
+        await channel.assertQueue(queue, { durable: true });
+        const isSent = channel.sendToQueue(queue, Buffer.from(message));
+        
+        if (isSent) {
+            console.log(`Mensagem enviada para a fila ${queue}: ${message}`);
+          } else {
+            console.log(`Falha ao enviar mensagem para a fila ${queue}`);
+          }
+        // Fecha a conexão
+    await channel.close();
+    await connection.close();
+
     } catch (error) {
-        console.error('Erro ao imprimir:', error);
+        console.error(error);
     }
 }
-
 
 const delay = ms => new Promise(res => setTimeout(res, ms)); // Função que usamos para criar o delay entre uma ação e outra
 
@@ -54,6 +46,8 @@ client.on('message', async msg => {
         const contact = await msg.getContact(); //Pegando o contato
         const name = contact.pushname; //Pegando o nome do contato
         await client.sendMessage(msg.from, 'Olá! ' + name.split(" ")[0] + ' Sou o assistente virtual da empresa tal. Como posso ajudá-lo hoje? Por favor, digite uma das opções abaixo:\n\n1 - Como funciona\n2 - Valores dos planos\n3 - Benefícios\n4 - Como aderir\n5 - Outras perguntas'); //Primeira mensagem de texto
+
+        await sendMessageToQueue('chatbot_messages', "Mensagem enviada para o cliente: ");
 
     }
 
@@ -99,7 +93,6 @@ client.on('message', async msg => {
         await delay(3000); //delay de 3 segundos
         await chat.sendStateTyping(); // Simulando Digitação
         await delay(3000);
-        imprimirMensagem("Imprimir mensagem ", msg.from)
         console.log("Body", msg.body);
         console.log("From", msg.from);
 
@@ -130,7 +123,6 @@ client.on('message', async msg => {
         await delay(3000);
         await client.sendMessage(msg.from, 'Se você tiver outras dúvidas ou precisar de mais informações, por favor, fale aqui nesse whatsapp ou visite nosso site: https://site.com ');
 
-        imprimirMensagem("Imprimir mensagem numero 5 ", msg.from)
     }
 
 });
